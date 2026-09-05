@@ -6,6 +6,59 @@ from PIL import Image
 from constants import SAMPLE_RATE
 
 
+MORSE = {
+    "A": ".-", "B": "-...", "C": "-.-.", "D": "-..", "E": ".",
+    "F": "..-.", "G": "--.", "H": "....", "I": "..", "J": ".---",
+    "K": "-.-", "L": ".-..", "M": "--", "N": "-.", "O": "---",
+    "P": ".--.", "Q": "--.-", "R": ".-.", "S": "...", "T": "-",
+    "U": "..-", "V": "...-", "W": ".--", "X": "-..-", "Y": "-.--",
+    "Z": "--..", "0": "-----", "1": ".----", "2": "..---",
+    "3": "...--", "4": "....-", "5": ".....", "6": "-....",
+    "7": "--...", "8": "---..", "9": "----.", "/": "-..-.",
+    "-": "-....-",
+}
+
+
+def morse_id(text: str, frequency=700.0, wpm=18.0, level=.18) -> np.ndarray:
+    """Render an identification string as standard-timed keyed CW audio."""
+    message = " ".join(text.upper().split())
+    unit_samples = max(1, round(SAMPLE_RATE * 1.2 / max(5.0, wpm)))
+    phase = 0.0
+
+    def tone(units: int) -> np.ndarray:
+        nonlocal phase
+        count = unit_samples * units
+        n = np.arange(count, dtype=np.float64)
+        values = np.sin(phase + 2*np.pi*frequency*n/SAMPLE_RATE) * level
+        phase = (phase + 2*np.pi*frequency*count/SAMPLE_RATE) % (2*np.pi)
+        fade = min(round(SAMPLE_RATE * .004), count // 2)
+        if fade:
+            envelope = np.ones(count, dtype=np.float64)
+            envelope[:fade] = np.linspace(0, 1, fade, endpoint=False)
+            envelope[-fade:] = np.linspace(1, 0, fade, endpoint=False)
+            values *= envelope
+        return values.astype(np.float32)
+
+    def silence(units: int) -> np.ndarray:
+        return np.zeros(unit_samples * units, dtype=np.float32)
+
+    parts = []
+    words = message.split(" ") if message else []
+    for word_index, word in enumerate(words):
+        valid_chars = [char for char in word if char in MORSE]
+        for char_index, char in enumerate(valid_chars):
+            pattern = MORSE[char]
+            for mark_index, mark in enumerate(pattern):
+                parts.append(tone(3 if mark == "-" else 1))
+                if mark_index < len(pattern) - 1:
+                    parts.append(silence(1))
+            if char_index < len(valid_chars) - 1:
+                parts.append(silence(3))
+        if word_index < len(words) - 1:
+            parts.append(silence(7))
+    return np.concatenate(parts) if parts else np.zeros(0, dtype=np.float32)
+
+
 def activity_level_dbfs(samples: np.ndarray, block_samples=4800) -> float:
     """Return 90th-percentile block RMS, ignoring isolated HF noise pops."""
     values = np.asarray(samples, dtype=np.float32).reshape(-1)

@@ -3,3 +3,4 @@ include requirements.txt installer.bat installer.sh run_windows.bat run_linux.sh
 recursive-include docs *.md
 recursive-include .github *.yml
 recursive-include tests *.py
+recursive-include artwork *.png

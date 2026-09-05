@@ -1,6 +1,7 @@
 """Regression tests for geometry and channel-image helpers."""
 
 import unittest
+from pathlib import Path
 
 from PIL import Image, ImageDraw
 
@@ -23,6 +24,18 @@ class ImageProcessingTests(unittest.TestCase):
         result = expand_preset_art(image)
         self.assertEqual(result.size, (360, 120))
         self.assertEqual(result.getbbox(), (14, 7, 346, 113))
+
+    def test_bundled_artwork_is_radio_ready(self):
+        artwork_dir = Path(__file__).parents[1] / "artwork"
+        expected = {"skull.png", "alien-head.png", "alien-full-body.png", "ufo.png",
+                    "radio-tower-lightning.png"}
+        self.assertEqual({path.name for path in artwork_dir.glob("*.png")}, expected)
+        for path in artwork_dir.glob("*.png"):
+            with Image.open(path) as image:
+                grayscale = image.convert("L")
+                self.assertEqual(grayscale.size, (360, 120))
+                self.assertLessEqual(set(grayscale.getdata()), {0, 255})
+                self.assertIsNotNone(grayscale.getbbox())
 
 
 if __name__ == "__main__":

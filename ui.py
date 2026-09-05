@@ -16,6 +16,7 @@ import json
 import sys
 import time
 import wave
+from pathlib import Path
 
 import numpy as np
 import sounddevice as sd
@@ -33,8 +34,8 @@ from serial.tools import list_ports
 
 from constants import (APP_VERSION, CALIBRATIONS, LAYOUTS, ORIENTATIONS,
                        PRESETS, SAMPLE_RATE)
-from dsp import (activity_level_dbfs, add_vox_guards, audio_spectrogram,
-                 synthesize)
+from dsp import (MORSE, activity_level_dbfs, add_vox_guards, audio_spectrogram,
+                 morse_id, synthesize)
 from image_processing import (channel_image, expand_preset_art, glyph_duration,
                               predicted_waterfall, rotate_for_transmission,
                               trim_glyph_time_margins)
@@ -108,6 +109,8 @@ class MainWindow(QMainWindow):
         self.resize(1180, 800)
         self.settings = QSettings("KE0CGB", "WaterfallStudio")
         self.source_image: Image.Image | None = None
+        self.current_preset_name: str | None = None
+        self.preset_profiles: dict[str, dict] = {}
         self.source_render = Image.new("L", (360, 120), 0)
         self.transmit_render = self.source_render.copy()
         self.letter_frames: list[Image.Image | None] = []
@@ -153,8 +156,13 @@ class MainWindow(QMainWindow):
         self.layout_mode = QComboBox(); self.layout_mode.addItems(LAYOUTS); self.layout_mode.setCurrentIndex(1); self.layout_mode.currentTextChanged.connect(self.rebuild)
         self.reverse_letters = QCheckBox("Reverse letter order"); self.reverse_letters.toggled.connect(self.rebuild)
         self.flip_vertical = QCheckBox("Flip each letter vertically (Q-tail fix)"); self.flip_vertical.setChecked(True); self.flip_vertical.toggled.connect(self.rebuild)
+        self.cw_id_enabled = QCheckBox("Send CW ID after transmission")
+        self.cw_id_enabled.toggled.connect(self.rebuild)
+        self.cw_id_call = QLineEdit("KE0CGB")
+        self.cw_id_call.setMaxLength(24); self.cw_id_call.textChanged.connect(self.rebuild)
         form = QFormLayout(); form.addRow("Text", self.text); form.addRow("Font size", self.font_size); form.addRow("Font weight", self.font_weight)
         form.addRow("Text layout", self.layout_mode); form.addRow(self.reverse_letters); form.addRow(self.flip_vertical)
+        form.addRow(self.cw_id_enabled); form.addRow("CW ID callsign", self.cw_id_call)
         controls.addLayout(form, 0, 0)
 
         art = QFormLayout()
@@ -162,10 +170,11 @@ class MainWindow(QMainWindow):
         clear = QPushButton("Clear loaded art"); clear.clicked.connect(self.clear_art)
         row = QHBoxLayout(); row.addWidget(load); row.addWidget(clear); art.addRow(row)
         self.preset = QComboBox(); self.preset.addItems(PRESETS)
-        preset_btn = QPushButton("Load preset"); preset_btn.clicked.connect(lambda: self.set_art(self.make_preset(self.preset.currentText())))
-        prow = QHBoxLayout(); prow.addWidget(self.preset); prow.addWidget(preset_btn); art.addRow("Preset", prow)
+        preset_btn = QPushButton("Load preset"); preset_btn.clicked.connect(self.load_selected_preset)
+        save_preset = QPushButton("Save preset settings"); save_preset.clicked.connect(self.save_current_preset_profile)
+        prow = QHBoxLayout(); prow.addWidget(self.preset); prow.addWidget(preset_btn); prow.addWidget(save_preset); art.addRow("Preset", prow)
         self.calibration = QComboBox(); self.calibration.addItems(CALIBRATIONS)
-        cal_btn = QPushButton("Load calibration"); cal_btn.clicked.connect(lambda: self.set_art(self.make_calibration(self.calibration.currentText())))
+        cal_btn = QPushButton("Load calibration"); cal_btn.clicked.connect(self.load_selected_calibration)
         crow = QHBoxLayout(); crow.addWidget(self.calibration); crow.addWidget(cal_btn); art.addRow("Calibration", crow)
         controls.addLayout(art, 0, 1)
 
@@ -424,6 +433,25 @@ class MainWindow(QMainWindow):
         if self.fft_row >= self.fft_image.height: self.fft_timer.stop()
 
     def make_preset(self, name: str) -> Image.Image:
+        # Detailed presets are shipped as deliberately simple, two-colour
+        # 3:1 images.  Keeping them on disk also lets operators reuse the PNGs
+        # in other waterfall/SSTV tools without extracting them from the code.
+        bundled_art = {
+            "Skull": "skull.png",
+            "Alien head": "alien-head.png",
+            "Alien full body": "alien-full-body.png",
+            "UFO": "ufo.png",
+            "Radio tower lightning": "radio-tower-lightning.png",
+        }
+        if filename := bundled_art.get(name):
+            path = Path(__file__).with_name("artwork") / filename
+            with Image.open(path) as artwork:
+                image = artwork.convert("L")
+                # Crop unused margins before channel processing. This is
+                # especially important for the full-body alien: otherwise the
+                # figure occupies only a narrow slice of the available tones.
+                return expand_preset_art(image)
+
         image = Image.new("L", (360, 120), 0); d = ImageDraw.Draw(image); w = 255
         if name == "Smiley face":
             d.ellipse((126, 8, 234, 112), outline=w, width=11); d.ellipse((151, 33, 167, 49), fill=w); d.ellipse((193, 33, 209, 49), fill=w); d.arc((148, 42, 212, 94), 20, 160, fill=w, width=11)
@@ -464,13 +492,62 @@ class MainWindow(QMainWindow):
     def set_art(self, image):
         self.source_image = image.convert("L"); self.canvas.strokes.clear(); self.rebuild()
 
+    def signal_profile(self) -> dict:
+        """Capture channel controls that materially affect a preset on air."""
+        return {
+            "duration": self.duration.value(), "low": self.low.value(),
+            "high": self.high.value(), "detail": self.detail.value(),
+            "threshold": self.threshold.value(), "gamma": self.gamma.value(),
+            "thicken": self.thicken.value(), "aspect": self.aspect.value(),
+            "orientation": self.orientation.currentText(),
+            "invert": self.invert.isChecked(), "mirror": self.mirror.isChecked(),
+        }
+
+    def apply_signal_profile(self, profile: dict):
+        """Restore one preset's independently saved transmission settings."""
+        for control, key in ((self.duration, "duration"), (self.low, "low"),
+                             (self.high, "high"), (self.detail, "detail"),
+                             (self.threshold, "threshold"), (self.gamma, "gamma"),
+                             (self.thicken, "thicken"), (self.aspect, "aspect")):
+            if key in profile: control.setValue(profile[key])
+        if "orientation" in profile:
+            index = self.orientation.findText(profile["orientation"])
+            if index >= 0: self.orientation.setCurrentIndex(index)
+        if "invert" in profile: self.invert.setChecked(bool(profile["invert"]))
+        if "mirror" in profile: self.mirror.setChecked(bool(profile["mirror"]))
+
+    def load_selected_preset(self):
+        """Load preset artwork and its saved or factory transmission profile."""
+        name = self.preset.currentText()
+        self.current_preset_name = name
+        self.set_art(self.make_preset(name))
+        factory = {"duration": 20.0, "aspect": 4.0} if name == "Alien full body" else {}
+        self.apply_signal_profile(self.preset_profiles.get(name, factory))
+        self.rebuild()
+        self.statusBar().showMessage(f"Loaded {name} with its preset transmission settings")
+
+    def save_current_preset_profile(self):
+        """Store the current Optimize controls under the selected preset name."""
+        if self.current_preset_name is None:
+            QMessageBox.information(self, "Load a preset", "Load the preset you want to tune first.")
+            return
+        self.preset_profiles[self.current_preset_name] = self.signal_profile()
+        self.save_settings()
+        self.statusBar().showMessage(f"Saved transmission settings for {self.current_preset_name}")
+
     def load_image(self):
         path, _ = QFileDialog.getOpenFileName(self, "Open artwork", "", "Images (*.png *.jpg *.jpeg *.bmp)")
         if path:
-            try: self.set_art(Image.open(path))
+            try:
+                self.current_preset_name = None
+                self.set_art(Image.open(path))
             except Exception as exc: QMessageBox.critical(self, "Image error", str(exc))
 
-    def clear_art(self): self.source_image = None; self.canvas.strokes.clear(); self.rebuild()
+    def load_selected_calibration(self):
+        self.current_preset_name = None
+        self.set_art(self.make_calibration(self.calibration.currentText()))
+
+    def clear_art(self): self.source_image = None; self.current_preset_name = None; self.canvas.strokes.clear(); self.rebuild()
     def clear_drawing(self): self.canvas.strokes.clear(); self.rebuild()
 
     def refresh_audio(self):
@@ -530,6 +607,18 @@ class MainWindow(QMainWindow):
             else:
                 self.audio = synthesize(self.transmit_render, self.low.value(), self.high.value(),
                                         self.duration.value(), self.level.value()/100)
+            if self.cw_id_enabled.isChecked():
+                callsign = self.cw_id_call.text().strip().upper()
+                if not callsign or any(char != " " and char not in MORSE for char in callsign):
+                    QMessageBox.warning(
+                        self, "Invalid CW ID",
+                        "Enter a callsign using letters, numbers, spaces, / or -.")
+                    return False
+                separator = np.zeros(round(SAMPLE_RATE * .5), dtype=np.float32)
+                identifier = morse_id(callsign, frequency=700, wpm=18,
+                                      level=self.level.value()/100)
+                self.audio = np.concatenate((self.audio, separator, identifier,
+                                             np.zeros(round(SAMPLE_RATE * .2), dtype=np.float32)))
             self.prepare_fft_preview()
             self.statusBar().showMessage(f"Generated {len(self.audio)/SAMPLE_RATE:.1f} seconds; inspect Preview before transmitting")
             return True
@@ -683,6 +772,9 @@ class MainWindow(QMainWindow):
                     gap=self.letter_gap.value(), word_gap=self.word_gap.value(), threshold=self.threshold.value(), gamma=self.gamma.value(),
                     thicken=self.thicken.value(), font_weight=self.font_weight.currentText(),
                     flip_vertical=self.flip_vertical.isChecked(),
+                    cw_id_enabled=self.cw_id_enabled.isChecked(),
+                    cw_id_call=self.cw_id_call.text(),
+                    preset_profiles=self.preset_profiles,
                     vox_guard=self.vox_guard.value(), vox_tone=self.vox_tone.value(),
                     beacon_call=self.beacon_call.text(), beacon_interval=self.beacon_interval.value(),
                     listen_first=self.listen_first.isChecked(), listen_seconds=self.listen_seconds.value(),
@@ -706,6 +798,10 @@ class MainWindow(QMainWindow):
             if index >= 0: combo.setCurrentIndex(index)
         self.reverse_letters.setChecked(bool(data.get("reverse",False)))
         self.flip_vertical.setChecked(bool(data.get("flip_vertical",True)))
+        self.cw_id_enabled.setChecked(bool(data.get("cw_id_enabled",False)))
+        self.cw_id_call.setText(data.get("cw_id_call", data.get("beacon_call", "KE0CGB")))
+        profiles = data.get("preset_profiles", {})
+        self.preset_profiles = profiles if isinstance(profiles, dict) else {}
         self.aspect.setValue(data.get("aspect",1)); self.duration.setValue(data.get("duration",5))
         self.letter_gap.setValue(data.get("gap",.4)); self.threshold.setValue(data.get("threshold",35))
         self.word_gap.setValue(data.get("word_gap",.8))

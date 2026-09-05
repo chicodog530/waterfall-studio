@@ -60,7 +60,16 @@ chmod +x installer.sh run_linux.sh
   conventional scrolling waterfalls. It is independent of letter order.
 - **Load image:** Imports PNG, JPEG, or BMP artwork.
 - **Clear loaded art:** Returns to text mode.
-- **Presets:** Radio-friendly built-in artwork expanded to the usable canvas.
+- **Presets:** Radio-friendly built-in artwork expanded to the usable canvas,
+  including Skull, Alien head, full-body Alien, UFO, and Radio tower lightning
+  designs. Load a preset, tune it on the Optimize tab, then select **Save preset
+  settings** to remember its duration and channel-processing controls separately
+  from every other preset. The full-body alien defaults to 20 seconds and 4.0
+  waterfall aspect so it is roughly four letter-heights tall. Its empty margins
+  are removed automatically so the figure also fills the available tone span.
+- **Send CW ID after transmission:** Appends the callsign entered beside it as
+  a 700 Hz, 18 WPM CW identifier after the waterfall audio. This also applies
+  to each automatic beacon transmission when enabled.
 - **Calibration:** Patterns for diagnosing geometry and lost detail.
 
 Punctuation automatically receives less airtime than a full-height letter. A

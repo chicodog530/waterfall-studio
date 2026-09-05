@@ -86,6 +86,11 @@ Never automatically restore an actively transmitting or beacon-running state.
 2. Draw a high-contrast monochrome shape in `make_preset()`.
 3. Use thick, separated features; fine detail will not survive a narrow channel.
 4. Return through `expand_preset_art()` so empty margins do not waste bandwidth.
+
+Complex presets may instead be stored as 360 x 120 black-and-white PNG files in
+`artwork/` and mapped by name in `MainWindow.make_preset()`. Keep silhouettes
+bold and detail sparse: thin lines and small isolated marks rarely survive a
+narrow HF audio passband.
 5. Check both previews and make a low-power controlled RF test.
 
 ## Release checklist

@@ -1,4 +1,4 @@
-# Waterfall Studio 0.3.0
+# Waterfall Studio 0.3.4
 
 Waterfall Studio converts text, drawings, presets, and imported artwork into
 multitone audio for experimental waterfall-image transmission.
@@ -16,12 +16,16 @@ multitone audio for experimental waterfall-image transmission.
 - Correctly timed punctuation and independent letter/word gaps.
 - Imported artwork, freehand drawing, radio-friendly presets, and calibration
   patterns.
+- Per-preset transmission profiles for independently tuning duration and channel
+  processing, including a tall full-body alien preset.
 - Channel-aware detail, threshold, gamma, line thickness, aspect, mirroring,
   and orientation controls with predicted received preview.
 - Separate TX and RX audio-device selection.
 - VOX, serial RTS/DTR, and Yaesu FT-710 CAT PTT.
 - Timed callsign beacon with unsquelched-HF listen-before-transmit and automatic
   busy-channel retry.
+- Optional 700 Hz, 18 WPM CW callsign identification appended after each
+  waterfall transmission.
 - Animated FFT waterfall built from the generated audio—not just the source
   artwork—at 1x, 4x, or 10x preview speed.
 - Hamlib `rigctld` PTT support for a broad range of radio models.
@@ -89,6 +93,8 @@ being stretched into a long waterfall bar.
 
 Built-in picture presets are tightly cropped, expanded across the usable
 bandwidth, and drawn with stronger details that survive radio filtering.
+The Skull, Alien head, UFO, and Radio tower lightning presets are also supplied
+as standalone 360 x 120, two-colour PNG files in the `artwork` folder.
 
 ## Radio and PTT
 

@@ -6,7 +6,7 @@ import numpy as np
 from PIL import Image, ImageDraw
 
 from constants import SAMPLE_RATE
-from dsp import audio_spectrogram, synthesize
+from dsp import audio_spectrogram, morse_id, synthesize
 
 
 class DspTests(unittest.TestCase):
@@ -24,6 +24,13 @@ class DspTests(unittest.TestCase):
         spectrum = np.asarray(image, dtype=np.float32).mean(axis=0)
         peak_fraction = int(np.argmax(spectrum)) / max(1, len(spectrum)-1)
         self.assertAlmostEqual(peak_fraction, .5, delta=.08)
+
+    def test_morse_id_has_standard_relative_timing(self):
+        # E is one dot, T is one dash, with a three-dot character gap.
+        audio = morse_id("ET", frequency=700, wpm=20, level=.2)
+        dot_samples = round(SAMPLE_RATE * 1.2 / 20)
+        self.assertEqual(len(audio), dot_samples * 7)
+        self.assertLessEqual(float(np.max(np.abs(audio))), .201)
 
 
 if __name__ == "__main__":

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "waterfall-studio"
-version = "0.3.0"
+version = "0.3.4"
 description = "Create channel-aware waterfall text and artwork as multitone audio"
 readme = "README.md"
 requires-python = ">=3.11"
