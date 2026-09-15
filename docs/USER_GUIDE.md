@@ -97,6 +97,20 @@ Use **Square** calibration first. Adjust Waterfall aspect until it arrives
 square. Then use Frequency bars to find useful detail and Timing bars to check
 scroll speed.
 
+### Maximizing transmitted bandwidth
+
+Waterfall Studio can generate an audio signal spanning any width you request (e.g. 50 to 6000 Hz). However, most SSB radios employ a hard physical or DSP transmit filter (TX BPF) designed to block non-vocal frequencies (typically anything above 2.8–3.0 kHz). If you attempt to send a 6 kHz waterfall signal through a standard radio, the radio will permanently slice off the upper half of your image before it reaches the antenna.
+
+To get the largest possible image out of your radio, you must expand the radio's transmit filter to its maximum allowable limit, and then match the app's settings to that limit:
+
+1. **Find your radio's TX bandwidth (TX BPF) setting:**
+   - **Yaesu FT-710 / FTDX10 / FTDX101:** Go to `Menu > Radio Settings > Mode SSB > TX BPF SEL` and select the widest option (`50 - 3050 Hz`).
+   - **Icom IC-7300 / IC-7610:** Go to `Menu > SET > Tone Control/TBW > TX > SSB TBW (WIDE)` and set it to `100 - 2900 Hz`. Make sure you are using the WIDE transmit filter during operation.
+   - **FlexRadio / SDRs:** Modern SDRs (and radios supporting "Extended SSB" or ESSB) often allow you to open the transmit filter much wider (e.g., 4 kHz, 6 kHz, or even 10 kHz). Set your TX filter as wide as regulations and your amplifier allow.
+   
+2. **Match the app to your radio:** In the **Optimize** tab, set the **Lowest audio tone** and **Highest audio tone** to exactly match the radio limits you just configured (e.g. `50` and `3050`).
+3. **Maximize Font Size:** Once the app's tones match your radio's maximum open filter, you can safely drag the **Font size** slider to its maximum (`200`) to completely fill 100% of your radio's available RF bandwidth without any clipping.
+
 ## Radio tab
 
 ### Audio and PTT
