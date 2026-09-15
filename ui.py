@@ -309,7 +309,7 @@ class MainWindow(QMainWindow):
         qimage = QImage(width, height, QImage.Format_Grayscale8); qimage.fill(0)
         painter = QPainter(qimage); painter.setPen(QPen(Qt.white)); painter.setFont(font)
         painter.drawText(qimage.rect(), Qt.AlignCenter, text); painter.end()
-        return Image.frombytes("L", (width, height), bytes(qimage.constBits()))
+        return Image.frombytes("L", (width, height), bytes(qimage.constBits()), "raw", "L", qimage.bytesPerLine(), 1)
 
     def rebuild(self, *_):
         """Rebuild source art, transmit frames, timing, and both previews."""
