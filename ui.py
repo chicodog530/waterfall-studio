@@ -484,10 +484,10 @@ class MainWindow(QMainWindow):
             path = Path(__file__).with_name("artwork") / filename
             with Image.open(path) as artwork:
                 image = artwork.convert("L")
-                # Crop unused margins before channel processing. This is
-                # especially important for the full-body alien: otherwise the
-                # figure occupies only a narrow slice of the available tones.
-                return expand_preset_art(image)
+                # Legacy presets were designed in a 360x120 box.
+                if image.size == (360, 120):
+                    return expand_preset_art(image)
+                return image
 
         image = Image.new("L", (360, 120), 0); d = ImageDraw.Draw(image); w = 255
         if name == "Smiley face":
