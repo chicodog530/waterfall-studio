@@ -13,5 +13,8 @@ PRESETS = (
     "CQ", "QSL", "QRZ?", "RST 599", "SK", "SOS", "Antenna",
     "Radio waves", "Arrow right", "Lightning bolt",
     "Skull", "Alien head", "Alien full body", "UFO", "Radio tower lightning",
+    "Radio", "Car", "Coffee", "Satellite", "Lightning", "Anchor",
+    "Music", "Airplane", "Rocket", "Cat", "Dog", "Ghost",
+    "Space Invader", "Apple", "Sun", "Moon", "Tree", "Umbrella", "Key"
 )
 CALIBRATIONS = ("Square", "Grid", "Frequency bars", "Timing bars")

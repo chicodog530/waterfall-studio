@@ -472,6 +472,13 @@ class MainWindow(QMainWindow):
             "Alien full body": "alien-full-body.png",
             "UFO": "ufo.png",
             "Radio tower lightning": "radio-tower-lightning.png",
+            "Radio": "radio.png", "Car": "car.png", "Coffee": "coffee.png",
+            "Satellite": "satellite.png", "Lightning": "lightning.png",
+            "Anchor": "anchor.png", "Music": "music.png", "Airplane": "airplane.png",
+            "Rocket": "rocket.png", "Cat": "cat.png", "Dog": "dog.png",
+            "Ghost": "ghost.png", "Space Invader": "space_invader.png",
+            "Apple": "apple.png", "Sun": "sun.png", "Moon": "moon.png",
+            "Tree": "tree.png", "Umbrella": "umbrella.png", "Key": "key.png"
         }
         if filename := bundled_art.get(name):
             path = Path(__file__).with_name("artwork") / filename
