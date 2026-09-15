@@ -151,7 +151,7 @@ class MainWindow(QMainWindow):
         layout = QVBoxLayout(self.create_tab)
         controls = QGridLayout(); layout.addLayout(controls)
         self.text = QLineEdit("KE0CGB"); self.text.textChanged.connect(self.rebuild)
-        self.font_size = QSpinBox(); self.font_size.setRange(12, 160); self.font_size.setValue(72); self.font_size.valueChanged.connect(self.rebuild)
+        self.font_size = QSpinBox(); self.font_size.setRange(12, 200); self.font_size.setValue(72); self.font_size.valueChanged.connect(self.rebuild)
         self.font_weight = QComboBox(); self.font_weight.addItems(("Normal", "Bold")); self.font_weight.currentTextChanged.connect(self.rebuild)
         self.layout_mode = QComboBox(); self.layout_mode.addItems(LAYOUTS); self.layout_mode.setCurrentIndex(1); self.layout_mode.currentTextChanged.connect(self.rebuild)
         self.reverse_letters = QCheckBox("Reverse letter order"); self.reverse_letters.toggled.connect(self.rebuild)
