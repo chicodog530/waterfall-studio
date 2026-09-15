@@ -297,12 +297,15 @@ class MainWindow(QMainWindow):
         controls.addWidget(replay); controls.addStretch()
         layout.addLayout(controls, 5, 0, 1, 2)
 
-    def render_text(self, text: str, font_size: int, minimum_width=360, minimum_height=120) -> Image.Image:
+    def render_text(self, text: str, font_size: int, box_size: int = 0) -> Image.Image:
         weight = QFont.Bold if self.font_weight.currentText() == "Bold" else QFont.Normal
         font = QFont("DejaVu Sans", font_size, weight)
         metrics = QFontMetrics(font)
-        width = max(minimum_width, min(16000, metrics.horizontalAdvance(text) + 60))
-        height = max(minimum_height, metrics.height() + 40)
+        if box_size:
+            width = height = box_size
+        else:
+            width = max(1, min(16000, metrics.horizontalAdvance(text) + 20))
+            height = max(1, metrics.height() + 20)
         qimage = QImage(width, height, QImage.Format_Grayscale8); qimage.fill(0)
         painter = QPainter(qimage); painter.setPen(QPen(Qt.white)); painter.setFont(font)
         painter.drawText(qimage.rect(), Qt.AlignCenter, text); painter.end()
@@ -320,9 +323,12 @@ class MainWindow(QMainWindow):
             self.word_gap.setEnabled(sequential)
         if self.source_image is None:
             source = self.render_text(self.text.text(), self.font_size.value())
+            ref = self.render_text("H", self.font_size.value())
+            self.artwork_duration = self.duration.value() * max(1.0, source.width / ref.width)
         else:
             width = max(360, round(120 * self.source_image.width / max(1, self.source_image.height)))
             source = ImageOps.contain(self.source_image, (min(width, 16000), 120))
+            self.artwork_duration = self.duration.value()
         if self.canvas.strokes and not sequential:
             q = QImage(source.tobytes(), source.width, source.height, source.width, QImage.Format_Grayscale8).copy()
             p = QPainter(q); p.setPen(QPen(Qt.white, 3))
@@ -341,8 +347,11 @@ class MainWindow(QMainWindow):
             text = self.text.text()[::-1] if self.reverse_letters.isChecked() else self.text.text()
             glyphs = []
             durations = []
+            weight = QFont.Bold if self.font_weight.currentText() == "Bold" else QFont.Normal
+            font = QFont("DejaVu Sans", self.font_size.value(), weight)
+            box_size = max(40, QFontMetrics(font).height() + 20)
             reference = trim_glyph_time_margins(
-                self.render_text("H", self.font_size.value(), 120, 120),
+                self.render_text("H", self.font_size.value(), box_size),
                 self.threshold.value(), sequential_h)
             reference_size = max(1, reference.width if sequential_h else reference.height)
             for ch in text:
@@ -350,7 +359,7 @@ class MainWindow(QMainWindow):
                     glyphs.append(None)
                     durations.append(self.word_gap.value())
                     continue
-                glyph = self.render_text(ch, self.font_size.value(), 120, 120)
+                glyph = self.render_text(ch, self.font_size.value(), box_size)
                 glyph = trim_glyph_time_margins(glyph, self.threshold.value(), sequential_h)
                 # The trimmed source dimension becomes time after rotation. Preserve
                 # that geometry instead of stretching punctuation to a full letter.
@@ -403,7 +412,8 @@ class MainWindow(QMainWindow):
         if self.letter_frames:
             adjacent = sum(a is not None and b is not None for a,b in zip(self.letter_frames,self.letter_frames[1:]))
             total_time = sum(self.frame_durations)+adjacent*self.letter_gap.value()
-        else: total_time = self.duration.value()
+        else:
+            total_time = getattr(self, 'artwork_duration', self.duration.value())
         self.total_time_label.setText(f"Estimated total: {total_time:.1f} s")
         self.summary.setText(f"Predicted occupied audio span: {bandwidth} Hz | "
                              f"Channel detail: {self.transmit_render.height} frequency rows | "
@@ -609,8 +619,9 @@ class MainWindow(QMainWindow):
                             self.letter_frames[index+1] is not None and gap.size): pieces.append(gap)
                 self.audio = np.concatenate(pieces)
             else:
+                dur = getattr(self, "artwork_duration", self.duration.value())
                 self.audio = synthesize(self.transmit_render, self.low.value(), self.high.value(),
-                                        self.duration.value(), self.level.value()/100)
+                                        dur, self.level.value()/100)
             if self.cw_id_enabled.isChecked():
                 callsign = self.cw_id_call.text().strip().upper()
                 if not callsign or any(char != " " and char not in MORSE for char in callsign):
