@@ -43,13 +43,19 @@ def channel_image(image: Image.Image, rows: int, threshold: int,
     return processed
 
 
-def trim_glyph_time_margins(image: Image.Image, threshold: int) -> Image.Image:
-    """Remove vertical font whitespace that becomes dead time after rotation."""
+def trim_glyph_time_margins(image: Image.Image, threshold: int, horizontal: bool = False) -> Image.Image:
+    """Remove font whitespace that becomes dead time after rotation."""
     pixels = np.asarray(image.convert("L"))
-    indices = np.flatnonzero(np.any(pixels >= max(1, threshold), axis=1))
-    if not indices.size:
-        return image
-    return image.crop((0, int(indices[0]), image.width, int(indices[-1]) + 1))
+    if horizontal:
+        occupied = np.any(pixels >= max(1, threshold), axis=0)
+        indices = np.flatnonzero(occupied)
+        if not indices.size: return image
+        return image.crop((int(indices[0]), 0, int(indices[-1]) + 1, image.height))
+    else:
+        occupied = np.any(pixels >= max(1, threshold), axis=1)
+        indices = np.flatnonzero(occupied)
+        if not indices.size: return image
+        return image.crop((0, int(indices[0]), image.width, int(indices[-1]) + 1))
 
 
 def glyph_duration(base_seconds: float, glyph_height: int,

@@ -297,18 +297,22 @@ class MainWindow(QMainWindow):
         controls.addWidget(replay); controls.addStretch()
         layout.addLayout(controls, 5, 0, 1, 2)
 
-    def render_text(self, text: str, font_size: int, minimum_width=360) -> Image.Image:
+    def render_text(self, text: str, font_size: int, minimum_width=360, minimum_height=120) -> Image.Image:
         weight = QFont.Bold if self.font_weight.currentText() == "Bold" else QFont.Normal
         font = QFont("DejaVu Sans", font_size, weight)
-        width = max(minimum_width, min(16000, QFontMetrics(font).horizontalAdvance(text) + 60))
-        qimage = QImage(width, 120, QImage.Format_Grayscale8); qimage.fill(0)
+        metrics = QFontMetrics(font)
+        width = max(minimum_width, min(16000, metrics.horizontalAdvance(text) + 60))
+        height = max(minimum_height, metrics.height() + 40)
+        qimage = QImage(width, height, QImage.Format_Grayscale8); qimage.fill(0)
         painter = QPainter(qimage); painter.setPen(QPen(Qt.white)); painter.setFont(font)
         painter.drawText(qimage.rect(), Qt.AlignCenter, text); painter.end()
-        return Image.frombytes("L", (width, 120), bytes(qimage.constBits()))
+        return Image.frombytes("L", (width, height), bytes(qimage.constBits()))
 
     def rebuild(self, *_):
         """Rebuild source art, transmit frames, timing, and both previews."""
-        sequential = self.layout_mode.currentText() == LAYOUTS[1] and self.source_image is None
+        sequential_v = self.layout_mode.currentText() == LAYOUTS[1] and self.source_image is None
+        sequential_h = self.layout_mode.currentText() == LAYOUTS[2] and self.source_image is None
+        sequential = sequential_v or sequential_h
         self.canvas.drawing_enabled = not sequential
         if hasattr(self, "duration_label"):
             self.duration_label.setText("Seconds per letter" if sequential else "Total duration")
@@ -338,20 +342,20 @@ class MainWindow(QMainWindow):
             glyphs = []
             durations = []
             reference = trim_glyph_time_margins(
-                self.render_text("H", min(self.font_size.value(), 92), 120),
-                self.threshold.value())
-            reference_height = max(1, reference.height)
+                self.render_text("H", self.font_size.value(), 120, 120),
+                self.threshold.value(), sequential_h)
+            reference_size = max(1, reference.width if sequential_h else reference.height)
             for ch in text:
                 if ch.isspace():
                     glyphs.append(None)
                     durations.append(self.word_gap.value())
                     continue
-                glyph = self.render_text(ch, min(self.font_size.value(), 92), 120)
-                glyph = trim_glyph_time_margins(glyph, self.threshold.value())
-                # The trimmed source height becomes time after rotation. Preserve
+                glyph = self.render_text(ch, self.font_size.value(), 120, 120)
+                glyph = trim_glyph_time_margins(glyph, self.threshold.value(), sequential_h)
+                # The trimmed source dimension becomes time after rotation. Preserve
                 # that geometry instead of stretching punctuation to a full letter.
-                durations.append(glyph_duration(self.duration.value(), glyph.height,
-                                                reference_height))
+                glyph_size = glyph.width if sequential_h else glyph.height
+                durations.append(glyph_duration(self.duration.value(), glyph_size, reference_size))
                 if self.invert.isChecked(): glyph = ImageOps.invert(glyph)
                 if self.mirror.isChecked(): glyph = ImageOps.mirror(glyph)
                 if self.flip_vertical.isChecked(): glyph = ImageOps.flip(glyph)
