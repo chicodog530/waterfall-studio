@@ -349,9 +349,12 @@ class MainWindow(QMainWindow):
             durations = []
             weight = QFont.Bold if self.font_weight.currentText() == "Bold" else QFont.Normal
             font = QFont("DejaVu Sans", self.font_size.value(), weight)
-            box_size = max(40, QFontMetrics(font).height() + 20)
+            # Use a large fixed box size so the font size slider acts as a relative scale
+            # within the channel band. Max out font size slightly below box size to prevent clipping.
+            box_size = 256
+            safe_font_size = min(self.font_size.value(), 200)
             reference = trim_glyph_time_margins(
-                self.render_text("H", self.font_size.value(), box_size),
+                self.render_text("H", safe_font_size, box_size),
                 self.threshold.value(), sequential_h)
             reference_size = max(1, reference.width if sequential_h else reference.height)
             for ch in text:
@@ -359,7 +362,7 @@ class MainWindow(QMainWindow):
                     glyphs.append(None)
                     durations.append(self.word_gap.value())
                     continue
-                glyph = self.render_text(ch, self.font_size.value(), box_size)
+                glyph = self.render_text(ch, safe_font_size, box_size)
                 glyph = trim_glyph_time_margins(glyph, self.threshold.value(), sequential_h)
                 # The trimmed source dimension becomes time after rotation. Preserve
                 # that geometry instead of stretching punctuation to a full letter.
