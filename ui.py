@@ -139,10 +139,11 @@ class MainWindow(QMainWindow):
 
         actions = QHBoxLayout(); outer.addLayout(actions)
         self.generate_btn = QPushButton("Generate audio"); self.generate_btn.clicked.connect(self.generate)
-        save = QPushButton("Save WAV…"); save.clicked.connect(self.save_wav)
+        save = QPushButton("Save WAV..."); save.clicked.connect(self.save_wav)
         self.send_btn = QPushButton("Transmit / play"); self.send_btn.clicked.connect(self.play)
         self.stop_btn = QPushButton("Stop"); self.stop_btn.clicked.connect(self.stop); self.stop_btn.setEnabled(False)
-        for widget in (self.generate_btn, save, self.send_btn, self.stop_btn): actions.addWidget(widget)
+        reset = QPushButton("Reset to Defaults"); reset.clicked.connect(self.reset_defaults)
+        for widget in (self.generate_btn, save, self.send_btn, self.stop_btn, reset): actions.addWidget(widget)
         self.progress = QProgressBar(); outer.addWidget(self.progress)
         self.statusBar().showMessage("Ready — calibrate into a dummy load or low-power test path first")
         self.refresh_audio(); self.refresh_ports(); self.restore_settings(); self.rebuild()
@@ -810,20 +811,24 @@ class MainWindow(QMainWindow):
                     listen_first=self.listen_first.isChecked(), listen_seconds=self.listen_seconds.value(),
                     noise_floor=self.noise_floor.value(), busy_margin=self.busy_margin.value(),
                     busy_retry=self.busy_retry.value(), rigctld_host=self.rigctld_host.text(),
-                    rigctld_port=self.rigctld_port.value(), fft_speed=self.fft_speed.currentText())
+                    rigctld_port=self.rigctld_port.value(), fft_speed=self.fft_speed.currentText(),
+                    font_size=self.font_size.value(), text=self.text.text())
         self.settings.setValue("profile", json.dumps(data))
 
-    def restore_settings(self):
-        try: data = json.loads(self.settings.value("profile", "{}"))
-        except Exception: return
+    def restore_settings(self, reset=False):
+        if reset: data = {}
+        else:
+            try: data = json.loads(self.settings.value("profile", "{}"))
+            except Exception: return
         for combo, value in ((self.output_devices,data.get("output")),(self.input_devices,data.get("input")),
                              (self.radio_name,data.get("radio")),(self.port,data.get("port")),
                              (self.baud,data.get("baud")),(self.ptt_method,data.get("ptt"))):
+            if value is None: continue
             index = combo.findData(value) if combo in (self.output_devices,self.input_devices,self.port) else combo.findText(str(value))
             if index >= 0: combo.setCurrentIndex(index)
         self.low.setValue(data.get("low",100)); self.high.setValue(data.get("high",3000)); self.detail.setValue(data.get("detail",72))
-        for combo, value in ((self.layout_mode,data.get("layout")),(self.orientation,data.get("orientation")),
-                             (self.font_weight,data.get("font_weight"))):
+        for combo, value in ((self.layout_mode,data.get("layout",LAYOUTS[1])),(self.orientation,data.get("orientation",ORIENTATIONS[0])),
+                             (self.font_weight,data.get("font_weight","Normal"))):
             index = combo.findText(str(value))
             if index >= 0: combo.setCurrentIndex(index)
         self.reverse_letters.setChecked(bool(data.get("reverse",False)))
@@ -840,14 +845,19 @@ class MainWindow(QMainWindow):
         self.beacon_call.setText(data.get("beacon_call","KE0CGB"))
         self.beacon_interval.setValue(data.get("beacon_interval",10))
         self.listen_first.setChecked(bool(data.get("listen_first",False)))
-        self.listen_seconds.setValue(data.get("listen_seconds",3))
-        self.noise_floor.setValue(data.get("noise_floor",-55))
-        self.busy_margin.setValue(data.get("busy_margin",4))
-        self.busy_retry.setValue(data.get("busy_retry",15))
+        self.listen_seconds.setValue(data.get("listen_seconds",3.0))
+        self.busy_margin.setValue(data.get("busy_margin",5.0))
+        self.busy_retry.setValue(data.get("busy_retry",1.0))
+        self.noise_floor.setValue(data.get("noise_floor",0.0))
         self.rigctld_host.setText(data.get("rigctld_host","127.0.0.1"))
         self.rigctld_port.setValue(data.get("rigctld_port",4532))
-        index = self.fft_speed.findText(data.get("fft_speed","4x"))
+        self.font_size.setValue(data.get("font_size",72))
+        self.text.setText(data.get("text","KE0CGB"))
+        index = self.fft_speed.findText(data.get("fft_speed", "1x (realtime)"))
         if index >= 0: self.fft_speed.setCurrentIndex(index)
+
+    def reset_defaults(self):
+        self.restore_settings(reset=True)
 
     def closeEvent(self, event):
         self.save_settings(); self.stop()
