@@ -202,7 +202,7 @@ class MainWindow(QMainWindow):
         self.invert = QCheckBox("Invert brightness"); self.mirror = QCheckBox("Mirror horizontally")
         for control in (self.low, self.high, self.duration, self.detail, self.threshold,
                         self.gamma, self.thicken, self.aspect, self.letter_gap, self.word_gap, self.orientation,
-                        self.invert, self.mirror):
+                        self.invert, self.mirror, self.level):
             if isinstance(control, QComboBox): control.currentTextChanged.connect(self.rebuild)
             elif isinstance(control, QCheckBox): control.toggled.connect(self.rebuild)
             else: control.valueChanged.connect(self.rebuild)
