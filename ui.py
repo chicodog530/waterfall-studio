@@ -347,34 +347,46 @@ class MainWindow(QMainWindow):
             text = self.text.text()[::-1] if self.reverse_letters.isChecked() else self.text.text()
             glyphs = []
             durations = []
-            weight = QFont.Bold if self.font_weight.currentText() == "Bold" else QFont.Normal
-            font = QFont("DejaVu Sans", self.font_size.value(), weight)
-            # Use a large fixed box size so the font size slider acts as a relative scale
-            # within the channel band. Max out font size slightly below box size to prevent clipping.
-            box_size = 256
-            safe_font_size = min(self.font_size.value(), 200)
+            
+            # Determine the global frequency padding needed so font size 200 fills 100% bandwidth
+            global_freq_pad = 1
+            for ch in set(text):
+                if ch.isspace(): continue
+                test_glyph = self.render_text(ch, 200)
+                test_rot = rotate_for_transmission(test_glyph, self.orientation.currentText())
+                global_freq_pad = max(global_freq_pad, test_rot.height)
+                
             reference = trim_glyph_time_margins(
-                self.render_text("H", safe_font_size, box_size),
+                self.render_text("H", self.font_size.value()),
                 self.threshold.value(), sequential_h)
             reference_size = max(1, reference.width if sequential_h else reference.height)
+            
             for ch in text:
                 if ch.isspace():
                     glyphs.append(None)
                     durations.append(self.word_gap.value())
                     continue
-                glyph = self.render_text(ch, safe_font_size, box_size)
+                glyph = self.render_text(ch, self.font_size.value())
                 glyph = trim_glyph_time_margins(glyph, self.threshold.value(), sequential_h)
+                
                 # The trimmed source dimension becomes time after rotation. Preserve
                 # that geometry instead of stretching punctuation to a full letter.
                 glyph_size = glyph.width if sequential_h else glyph.height
                 durations.append(glyph_duration(self.duration.value(), glyph_size, reference_size))
+                
                 if self.invert.isChecked(): glyph = ImageOps.invert(glyph)
                 if self.mirror.isChecked(): glyph = ImageOps.mirror(glyph)
                 if self.flip_vertical.isChecked(): glyph = ImageOps.flip(glyph)
+                
                 glyph = rotate_for_transmission(glyph, self.orientation.currentText())
+                
+                # Pad the frequency axis (Y) to the global padding so letters scale uniformly
+                padded = Image.new("L", (glyph.width, max(glyph.height, global_freq_pad)), 0)
+                padded.paste(glyph, (0, (padded.height - glyph.height) // 2))
+                
                 if self.aspect.value() != 1:
-                    glyph = glyph.resize((max(1, round(glyph.width*self.aspect.value())), glyph.height), Image.Resampling.BICUBIC)
-                glyphs.append(channel_image(glyph, self.detail.value(), self.threshold.value(),
+                    padded = padded.resize((max(1, round(padded.width*self.aspect.value())), padded.height), Image.Resampling.BICUBIC)
+                glyphs.append(channel_image(padded, self.detail.value(), self.threshold.value(),
                                             self.gamma.value(), self.thicken.value()))
             self.letter_frames = glyphs
             self.frame_durations = durations
